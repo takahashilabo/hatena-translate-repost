@@ -1,0 +1,21 @@
+[project]
+name = "hatena-translate-repost"
+version = "0.1.0"
+description = "Translate a Hatena Blog Markdown entry into natural English and repost it"
+readme = "README.md"
+authors = [
+    { name = "Keiichi Takahashi", email = "" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.28.1",
+    "python-dotenv>=1.2.2",
+    "typer>=0.24.1",
+]
+
+[project.scripts]
+hatena-translate-repost = "hatena_translate_repost:main"
+
+[build-system]
+requires = ["uv_build>=0.11.1,<0.12.0"]
+build-backend = "uv_build"
