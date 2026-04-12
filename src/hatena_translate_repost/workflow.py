@@ -57,6 +57,7 @@ def publish_entry(
         content=translated.body,
         content_type="text/x-markdown",
         categories=categories,
+        published=source_entry.published,
     )
 
     if dry_run:
@@ -98,7 +99,11 @@ def _resolve_source_entry(client: HatenaBlogClient, source: str, max_search_page
     if source.startswith("http://") or source.startswith("https://"):
         if "/atom/entry/" in source:
             return client.get_entry(source.rstrip("/").split("/")[-1])
-
+        # HTMLからエントリーIDを直接取得（全ページスキャン不要）
+        entry_id = client.fetch_entry_id_from_public_url(source)
+        if entry_id:
+            return client.get_entry(entry_id)
+        # フォールバック: ページスキャン
         matched = client.find_entry_by_url(source, max_pages=max_search_pages)
         if matched is None:
             raise ValueError("Could not find the source entry from the provided URL")

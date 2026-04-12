@@ -13,6 +13,7 @@ class BlogEntry:
     edit_url: str | None = None
     alternate_url: str | None = None
     draft: bool = False
+    published: str | None = None  # ISO 8601 (e.g. "2023-10-13T11:33:16+09:00")
 
 
 @dataclass(slots=True)

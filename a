@@ -1,0 +1,1 @@
+uv run hatena-translate-repost publish $1

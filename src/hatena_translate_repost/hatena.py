@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -75,6 +76,18 @@ class HatenaBlogClient:
 
         return None
 
+    def fetch_entry_id_from_public_url(self, url: str) -> str | None:
+        """公開記事URLのHTMLからはてなブログの数値エントリーIDを取得する。"""
+        try:
+            response = self._http.get(url, headers={"Accept": "text/html"})
+            response.raise_for_status()
+            match = re.search(r'id="entry-(\d+)"', response.text)
+            if match:
+                return match.group(1)
+        except Exception:
+            pass
+        return None
+
     def create_entry(self, entry: BlogEntry, draft: bool = False) -> BlogEntry:
         payload = _build_entry_xml(entry, self.hatena_id, draft)
         response = self._http.post(
@@ -108,6 +121,7 @@ def _parse_entry_element(element: ET.Element) -> BlogEntry:
     edit_link = element.find("atom:link[@rel='edit']", NAMESPACES)
     alternate_link = element.find("atom:link[@rel='alternate']", NAMESPACES)
     draft_element = element.find("app:control/app:draft", NAMESPACES)
+    published_element = element.find("atom:published", NAMESPACES)
     entry_id = _extract_entry_id(element, edit_link)
 
     return BlogEntry(
@@ -119,6 +133,7 @@ def _parse_entry_element(element: ET.Element) -> BlogEntry:
         edit_url=edit_link.attrib.get("href") if edit_link is not None else None,
         alternate_url=alternate_link.attrib.get("href") if alternate_link is not None else None,
         draft=_text(draft_element).strip().lower() == "yes",
+        published=_text(published_element) or None,
     )
 
 
@@ -146,6 +161,10 @@ def _build_entry_xml(entry: BlogEntry, hatena_id: str, draft: bool) -> bytes:
 
     for category_name in entry.categories:
         ET.SubElement(root, ET.QName(ATOM_NS, "category"), {"term": category_name})
+
+    if entry.published:
+        ET.SubElement(root, ET.QName(ATOM_NS, "published")).text = entry.published
+        ET.SubElement(root, ET.QName(ATOM_NS, "updated")).text = entry.published
 
     control = ET.SubElement(root, ET.QName(APP_NS, "control"))
     ET.SubElement(control, ET.QName(APP_NS, "draft")).text = "yes" if draft else "no"

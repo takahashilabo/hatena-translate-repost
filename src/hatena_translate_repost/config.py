@@ -42,6 +42,6 @@ class Settings:
             target_api_key=required("TARGET_API_KEY"),
             gemini_api_key=required("GEMINI_API_KEY"),
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-            request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "60")),
+            request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "180")),
             state_path=Path(os.getenv("STATE_PATH", ".hatena-translate-repost/state.json")),
         )
