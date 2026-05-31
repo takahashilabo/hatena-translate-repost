@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 
 from hatena_translate_repost.config import Settings
-from hatena_translate_repost.gemini import GeminiTranslator
+from hatena_translate_repost.translator import Translator
 from hatena_translate_repost.hatena import HatenaBlogClient
 from hatena_translate_repost.models import BlogEntry, PublishResult
 from hatena_translate_repost.state import PublishState
@@ -43,9 +43,9 @@ def publish_entry(
             "Use --allow-repost if you intentionally want to post it again."
         )
 
-    with GeminiTranslator(
-        settings.gemini_api_key,
-        settings.gemini_model,
+    with Translator(
+        settings.lm_studio_base_url,
+        settings.lm_studio_model,
         settings.request_timeout_seconds,
     ) as translator:
         translated = translator.translate(source_entry.title, source_entry.content)

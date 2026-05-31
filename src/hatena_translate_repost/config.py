@@ -15,8 +15,8 @@ class Settings:
     target_hatena_id: str
     target_blog_id: str
     target_api_key: str
-    gemini_api_key: str
-    gemini_model: str
+    lm_studio_base_url: str
+    lm_studio_model: str
     request_timeout_seconds: float
     state_path: Path
 
@@ -40,8 +40,8 @@ class Settings:
             target_hatena_id=required("TARGET_HATENA_ID"),
             target_blog_id=required("TARGET_BLOG_ID"),
             target_api_key=required("TARGET_API_KEY"),
-            gemini_api_key=required("GEMINI_API_KEY"),
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            lm_studio_base_url=os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1"),
+            lm_studio_model=os.getenv("LM_STUDIO_MODEL", "qwen3-8b"),
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "180")),
             state_path=Path(os.getenv("STATE_PATH", ".hatena-translate-repost/state.json")),
         )

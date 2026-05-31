@@ -1,1 +1,1 @@
-uv run hatena-translate-repost publish $1
+uv run hatena-translate-repost publish $1 --allow-repost

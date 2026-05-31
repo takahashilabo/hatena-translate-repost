@@ -5,16 +5,16 @@ import httpx
 from hatena_translate_repost.models import TranslationResult
 
 
-class GeminiTranslator:
-    def __init__(self, api_key: str, model: str, timeout_seconds: float) -> None:
-        self.api_key = api_key
+class Translator:
+    def __init__(self, base_url: str, model: str, timeout_seconds: float) -> None:
+        self.base_url = base_url.rstrip("/")
         self.model = model
         self._http = httpx.Client(timeout=timeout_seconds)
 
     def close(self) -> None:
         self._http.close()
 
-    def __enter__(self) -> GeminiTranslator:
+    def __enter__(self) -> Translator:
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
@@ -49,45 +49,35 @@ class GeminiTranslator:
         return _unwrap_code_fence(self._generate_text(prompt))
 
     def _generate_text(self, prompt: str) -> str:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         response = self._http.post(
-            url,
-            params={"key": self.api_key},
+            f"{self.base_url}/chat/completions",
             json={
-                "system_instruction": {
-                    "parts": [
-                        {
-                            "text": (
-                                "You are a professional English translator for blog articles. "
-                                "Your output must be natural, concise, and publication-ready."
-                            )
-                        }
-                    ]
-                },
-                "contents": [
+                "model": self.model,
+                "messages": [
                     {
-                        "role": "user",
-                        "parts": [{"text": prompt}],
-                    }
+                        "role": "system",
+                        "content": (
+                            "You are a professional English translator for blog articles. "
+                            "Your output must be natural, concise, and publication-ready."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
                 ],
-                "generationConfig": {
-                    "temperature": 0.2,
-                },
+                "temperature": 0.2,
+                "max_tokens": -1,
             },
         )
         response.raise_for_status()
         payload = response.json()
 
-        candidates = payload.get("candidates") or []
-        if not candidates:
-            raise RuntimeError(f"Gemini did not return a candidate: {payload}")
+        choices = payload.get("choices") or []
+        if not choices:
+            raise RuntimeError(f"LM Studio did not return a choice: {payload}")
 
-        parts = candidates[0].get("content", {}).get("parts", [])
-        text_parts = [part.get("text", "") for part in parts if part.get("text")]
-        translated = "".join(text_parts).strip()
-        if not translated:
-            raise RuntimeError(f"Gemini returned an empty translation: {payload}")
-        return translated
+        content = choices[0].get("message", {}).get("content", "").strip()
+        if not content:
+            raise RuntimeError(f"LM Studio returned empty content: {payload}")
+        return content
 
 
 def _unwrap_code_fence(text: str) -> str:
