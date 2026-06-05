@@ -79,7 +79,9 @@ class HatenaBlogClient:
     def fetch_entry_id_from_public_url(self, url: str) -> str | None:
         """公開記事URLのHTMLからはてなブログの数値エントリーIDを取得する。"""
         try:
-            response = self._http.get(url, headers={"Accept": "text/html"})
+            # 公開URLは認証不要。認証ヘッダーが干渉しないよう別クライアントで取得する。
+            with httpx.Client(follow_redirects=True, timeout=self._http.timeout) as client:
+                response = client.get(url)
             response.raise_for_status()
             match = re.search(r'id="entry-(\d+)"', response.text)
             if match:

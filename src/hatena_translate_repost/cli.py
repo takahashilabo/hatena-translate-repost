@@ -23,7 +23,7 @@ def publish(
     env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Translate and display the result without posting."),
     allow_repost: bool = typer.Option(False, "--allow-repost", help="Allow reposting the same source entry again."),
-    max_search_pages: int = typer.Option(20, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
+    max_search_pages: int = typer.Option(100, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
     category_mode: CategoryMode = typer.Option(CategoryMode.COPY, help="Whether to copy source categories to the target entry."),
 ) -> None:
     settings = _load_settings(env_file)
@@ -58,7 +58,7 @@ def publish(
 def preview(
     source: str = typer.Argument(..., help="Source entry ID, Atom member URL, or public article URL."),
     env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
-    max_search_pages: int = typer.Option(20, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
+    max_search_pages: int = typer.Option(100, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
     category_mode: CategoryMode = typer.Option(CategoryMode.COPY, help="Whether to copy source categories to the target entry."),
 ) -> None:
     publish(
@@ -76,7 +76,7 @@ def translate(
     source: str = typer.Argument(..., help="Source entry ID, Atom member URL, or public article URL."),
     env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
     allow_requeue: bool = typer.Option(False, "--allow-requeue", help="Re-translate even if already queued or published."),
-    max_search_pages: int = typer.Option(20, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
+    max_search_pages: int = typer.Option(100, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
     category_mode: CategoryMode = typer.Option(CategoryMode.COPY, help="Whether to copy source categories to the target entry."),
 ) -> None:
     """Translate a source entry and add it to the local queue without posting to Hatena."""
