@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 
 from hatena_translate_repost.config import Settings
 from hatena_translate_repost.translator import Translator
 from hatena_translate_repost.hatena import HatenaBlogClient
-from hatena_translate_repost.models import BlogEntry, PublishResult
+from hatena_translate_repost.models import BlogEntry, PublishResult, QueuedEntry, TranslationResult
+from hatena_translate_repost.queue import EntryQueue
 from hatena_translate_repost.state import PublishState
 
 
@@ -23,6 +25,7 @@ def publish_entry(
     max_search_pages: int,
     category_mode: CategoryMode,
 ) -> PublishResult:
+    _require_source_credentials(settings)
     state = PublishState(settings.state_path)
 
     with HatenaBlogClient(
@@ -117,6 +120,131 @@ def _ensure_markdown(entry: BlogEntry) -> None:
     if entry.content_type not in allowed_types:
         raise ValueError(
             f"Only Markdown entries are supported, but the source content type was {entry.content_type}"
+        )
+
+
+@dataclass(slots=True)
+class TranslateResult:
+    source_entry: BlogEntry
+    translated: TranslationResult | None
+    skipped: bool
+    skip_reason: str  # "published" | "queued" | ""
+
+
+@dataclass(slots=True)
+class UploadResult:
+    queued_entry: QueuedEntry
+    published_entry: BlogEntry
+
+
+def translate_to_queue(
+    settings: Settings,
+    source: str,
+    *,
+    allow_requeue: bool,
+    max_search_pages: int,
+    category_mode: CategoryMode,
+) -> TranslateResult:
+    _require_source_credentials(settings)
+    state = PublishState(settings.state_path)
+    queue = EntryQueue(settings.state_path.parent / "queue.json")
+
+    with HatenaBlogClient(
+        settings.source_hatena_id,
+        settings.source_blog_id,
+        settings.source_api_key,
+        settings.request_timeout_seconds,
+    ) as source_client:
+        source_entry = _resolve_source_entry(source_client, source, max_search_pages)
+
+    _ensure_markdown(source_entry)
+    source_key = _source_key(source_entry)
+
+    if not allow_requeue:
+        if state.get(source_key):
+            return TranslateResult(source_entry=source_entry, translated=None, skipped=True, skip_reason="published")
+        if queue.has(source_key):
+            return TranslateResult(source_entry=source_entry, translated=None, skipped=True, skip_reason="queued")
+
+    with Translator(
+        settings.lm_studio_base_url,
+        settings.lm_studio_model,
+        settings.request_timeout_seconds,
+    ) as translator:
+        translated = translator.translate(source_entry.title, source_entry.content)
+
+    categories = source_entry.categories if category_mode == CategoryMode.COPY else []
+    queue.add(
+        QueuedEntry(
+            source_key=source_key,
+            source_title=source_entry.title,
+            source_alternate_url=source_entry.alternate_url or "",
+            translated_title=translated.title,
+            translated_body=translated.body,
+            categories=categories,
+            published=source_entry.published,
+        ),
+        overwrite=allow_requeue,
+    )
+
+    return TranslateResult(source_entry=source_entry, translated=translated, skipped=False, skip_reason="")
+
+
+def upload_from_queue(
+    settings: Settings,
+    *,
+    limit: int,
+) -> list[UploadResult]:
+    queue = EntryQueue(settings.state_path.parent / "queue.json")
+    state = PublishState(settings.state_path)
+    results: list[UploadResult] = []
+
+    with HatenaBlogClient(
+        settings.target_hatena_id,
+        settings.target_blog_id,
+        settings.target_api_key,
+        settings.request_timeout_seconds,
+    ) as target_client:
+        for _ in range(limit):
+            peeked = queue.peek(1)
+            if not peeked:
+                break
+            entry = peeked[0]
+            published = target_client.create_entry(
+                BlogEntry(
+                    entry_id="",
+                    title=entry.translated_title,
+                    content=entry.translated_body,
+                    content_type="text/x-markdown",
+                    categories=entry.categories,
+                    published=entry.published,
+                ),
+                draft=False,
+            )
+            state.record(
+                entry.source_key,
+                {
+                    "source_title": entry.source_title,
+                    "source_alternate_url": entry.source_alternate_url,
+                    "target_title": published.title,
+                    "target_alternate_url": published.alternate_url or "",
+                    "target_edit_url": published.edit_url or "",
+                },
+            )
+            queue.remove(entry.source_key)
+            results.append(UploadResult(queued_entry=entry, published_entry=published))
+
+    return results
+
+
+def queue_count(settings: Settings) -> int:
+    return EntryQueue(settings.state_path.parent / "queue.json").count()
+
+
+def _require_source_credentials(settings: Settings) -> None:
+    if not settings.source_hatena_id or not settings.source_blog_id or not settings.source_api_key:
+        raise ValueError(
+            "SOURCE_HATENA_ID, SOURCE_BLOG_ID, and SOURCE_API_KEY are required for this operation."
         )
 
 

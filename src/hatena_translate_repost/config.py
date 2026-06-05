@@ -34,9 +34,9 @@ class Settings:
             raise ValueError(f"Missing required environment variable: {name}")
 
         return cls(
-            source_hatena_id=required("SOURCE_HATENA_ID"),
-            source_blog_id=required("SOURCE_BLOG_ID"),
-            source_api_key=required("SOURCE_API_KEY"),
+            source_hatena_id=os.getenv("SOURCE_HATENA_ID", ""),
+            source_blog_id=os.getenv("SOURCE_BLOG_ID", ""),
+            source_api_key=os.getenv("SOURCE_API_KEY", ""),
             target_hatena_id=required("TARGET_HATENA_ID"),
             target_blog_id=required("TARGET_BLOG_ID"),
             target_api_key=required("TARGET_API_KEY"),

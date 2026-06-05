@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+*.bat
 
 # Virtual environments
 .venv

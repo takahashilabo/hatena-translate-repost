@@ -28,3 +28,14 @@ class PublishResult:
     translated: TranslationResult
     published_entry: BlogEntry | None
     dry_run: bool
+
+
+@dataclass(slots=True)
+class QueuedEntry:
+    source_key: str
+    source_title: str
+    source_alternate_url: str
+    translated_title: str
+    translated_body: str
+    categories: list[str]
+    published: str | None  # ISO 8601
