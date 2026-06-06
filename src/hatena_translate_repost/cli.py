@@ -8,6 +8,7 @@ import typer
 from hatena_translate_repost.config import Settings
 from hatena_translate_repost.workflow import (
     CategoryMode,
+    build_source_index,
     publish_entry,
     queue_count,
     translate_to_queue,
@@ -123,6 +124,26 @@ def upload(
 
     remaining = queue_count(settings)
     typer.secho(f"\nUploaded {len(results)} entries. Queue remaining: {remaining}", fg=typer.colors.GREEN)
+
+
+@app.command()
+def index(
+    env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
+) -> None:
+    """Scan all source blog entries and build a local URL-to-entry-ID index."""
+    settings = _load_settings(env_file)
+
+    def on_page(page: int, total: int) -> None:
+        typer.echo(f"\rScanning... page {page} ({total} entries found)", nl=False)
+
+    try:
+        count = build_source_index(settings, on_page=on_page)
+    except (ValueError, RuntimeError, httpx.HTTPError) as exc:
+        typer.echo()
+        _handle_error(exc)
+
+    typer.echo()
+    typer.secho(f"Indexed {count} entries.", fg=typer.colors.GREEN)
 
 
 @app.command(name="queue-status")

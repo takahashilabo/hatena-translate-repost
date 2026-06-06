@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
 from hatena_translate_repost.config import Settings
+from hatena_translate_repost.index import EntryIndex
 from hatena_translate_repost.translator import Translator
 from hatena_translate_repost.hatena import HatenaBlogClient
 from hatena_translate_repost.models import BlogEntry, PublishResult, QueuedEntry, TranslationResult
 from hatena_translate_repost.queue import EntryQueue
 from hatena_translate_repost.state import PublishState
+
+
+def _source_index(settings: Settings) -> EntryIndex:
+    return EntryIndex(settings.state_path.parent / "source-index.json")
 
 
 class CategoryMode(StrEnum):
@@ -34,7 +40,7 @@ def publish_entry(
         settings.source_api_key,
         settings.request_timeout_seconds,
     ) as source_client:
-        source_entry = _resolve_source_entry(source_client, source, max_search_pages)
+        source_entry = _resolve_source_entry(source_client, source, max_search_pages, _source_index(settings))
 
     _ensure_markdown(source_entry)
     source_key = _source_key(source_entry)
@@ -98,11 +104,21 @@ def publish_entry(
     )
 
 
-def _resolve_source_entry(client: HatenaBlogClient, source: str, max_search_pages: int) -> BlogEntry:
+def _resolve_source_entry(
+    client: HatenaBlogClient,
+    source: str,
+    max_search_pages: int,
+    index: EntryIndex | None = None,
+) -> BlogEntry:
     if source.startswith("http://") or source.startswith("https://"):
         if "/atom/entry/" in source:
             return client.get_entry(source.rstrip("/").split("/")[-1])
-        # HTMLからエントリーIDを直接取得（全ページスキャン不要）
+        # ローカルインデックスを最優先（HTTP不要）
+        if index is not None:
+            entry_id = index.get(source)
+            if entry_id:
+                return client.get_entry(entry_id)
+        # HTMLパース（1リクエスト）
         entry_id = client.fetch_entry_id_from_public_url(source)
         if entry_id:
             return client.get_entry(entry_id)
@@ -113,6 +129,35 @@ def _resolve_source_entry(client: HatenaBlogClient, source: str, max_search_page
         return client.get_entry(matched.entry_id)
 
     return client.get_entry(source)
+
+
+def build_source_index(
+    settings: Settings,
+    on_page: Callable[[int, int], None] | None = None,
+) -> int:
+    """Scan all source blog entries and write a local URL→entry_id index."""
+    _require_source_credentials(settings)
+    all_entries: list[BlogEntry] = []
+
+    with HatenaBlogClient(
+        settings.source_hatena_id,
+        settings.source_blog_id,
+        settings.source_api_key,
+        settings.request_timeout_seconds,
+    ) as client:
+        page_url: str | None = None
+        page_num = 0
+        while True:
+            entries, page_url = client.list_entries(page_url)
+            all_entries.extend(entries)
+            page_num += 1
+            if on_page:
+                on_page(page_num, len(all_entries))
+            if page_url is None:
+                break
+
+    _source_index(settings).build(all_entries)
+    return len(all_entries)
 
 
 def _ensure_markdown(entry: BlogEntry) -> None:
@@ -155,7 +200,7 @@ def translate_to_queue(
         settings.source_api_key,
         settings.request_timeout_seconds,
     ) as source_client:
-        source_entry = _resolve_source_entry(source_client, source, max_search_pages)
+        source_entry = _resolve_source_entry(source_client, source, max_search_pages, _source_index(settings))
 
     _ensure_markdown(source_entry)
     source_key = _source_key(source_entry)
