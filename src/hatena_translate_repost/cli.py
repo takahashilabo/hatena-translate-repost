@@ -23,7 +23,7 @@ def publish(
     env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Translate and display the result without posting."),
     allow_repost: bool = typer.Option(False, "--allow-repost", help="Allow reposting the same source entry again."),
-    max_search_pages: int = typer.Option(100, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
+    max_search_pages: int = typer.Option(500, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
     category_mode: CategoryMode = typer.Option(CategoryMode.COPY, help="Whether to copy source categories to the target entry."),
 ) -> None:
     settings = _load_settings(env_file)
@@ -38,8 +38,7 @@ def publish(
             category_mode=category_mode,
         )
     except (ValueError, RuntimeError, httpx.HTTPError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _handle_error(exc)
 
     if result.dry_run:
         _print_preview(result.translated.title, result.translated.body)
@@ -58,7 +57,7 @@ def publish(
 def preview(
     source: str = typer.Argument(..., help="Source entry ID, Atom member URL, or public article URL."),
     env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
-    max_search_pages: int = typer.Option(100, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
+    max_search_pages: int = typer.Option(500, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
     category_mode: CategoryMode = typer.Option(CategoryMode.COPY, help="Whether to copy source categories to the target entry."),
 ) -> None:
     publish(
@@ -76,7 +75,7 @@ def translate(
     source: str = typer.Argument(..., help="Source entry ID, Atom member URL, or public article URL."),
     env_file: Path = typer.Option(Path(".env"), help="Path to the .env file."),
     allow_requeue: bool = typer.Option(False, "--allow-requeue", help="Re-translate even if already queued or published."),
-    max_search_pages: int = typer.Option(100, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
+    max_search_pages: int = typer.Option(500, min=1, help="Maximum Atom entry pages to scan when a public URL is provided."),
     category_mode: CategoryMode = typer.Option(CategoryMode.COPY, help="Whether to copy source categories to the target entry."),
 ) -> None:
     """Translate a source entry and add it to the local queue without posting to Hatena."""
@@ -91,8 +90,7 @@ def translate(
             category_mode=category_mode,
         )
     except (ValueError, RuntimeError, httpx.HTTPError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _handle_error(exc)
 
     if result.skipped:
         typer.secho(f"Skipped ({result.skip_reason}): {result.source_entry.title}", fg=typer.colors.YELLOW)
@@ -112,8 +110,7 @@ def upload(
     try:
         results = upload_from_queue(settings, limit=limit)
     except (ValueError, RuntimeError, httpx.HTTPError) as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _handle_error(exc)
 
     if not results:
         typer.secho("Queue is empty.", fg=typer.colors.YELLOW)
@@ -136,6 +133,13 @@ def queue_status(
     settings = _load_settings(env_file)
     count = queue_count(settings)
     typer.echo(f"Queue: {count} entries pending upload.")
+
+
+def _handle_error(exc: Exception) -> None:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    if isinstance(exc, httpx.HTTPStatusError):
+        typer.secho(f"Response body: {exc.response.text}", fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
 
 
 def _load_settings(env_file: Path) -> Settings:
