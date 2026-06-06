@@ -147,9 +147,14 @@ def build_source_index(
     ) as client:
         page_url: str | None = None
         page_num = 0
-        while True:
+        done = False
+        while not done:
             entries, page_url = client.list_entries(page_url)
-            all_entries.extend(entries)
+            for e in entries:
+                if _entry_year(e) < _INDEX_SINCE_YEAR:
+                    done = True
+                    break
+                all_entries.append(e)
             page_num += 1
             if on_page:
                 on_page(page_num, len(all_entries))
@@ -158,6 +163,18 @@ def build_source_index(
 
     _source_index(settings).build(all_entries)
     return len(all_entries)
+
+
+_INDEX_SINCE_YEAR = 2023
+
+
+def _entry_year(entry: BlogEntry) -> int:
+    if entry.published and len(entry.published) >= 4:
+        try:
+            return int(entry.published[:4])
+        except ValueError:
+            pass
+    return 9999
 
 
 def _ensure_markdown(entry: BlogEntry) -> None:
