@@ -256,6 +256,7 @@ def upload_from_queue(
     settings: Settings,
     *,
     limit: int,
+    on_upload: Callable[[QueuedEntry, int], None] | None = None,
 ) -> list[UploadResult]:
     queue = EntryQueue(settings.state_path.parent / "queue.json")
     state = PublishState(settings.state_path)
@@ -267,11 +268,13 @@ def upload_from_queue(
         settings.target_api_key,
         settings.request_timeout_seconds,
     ) as target_client:
-        for _ in range(limit):
+        for n in range(limit):
             peeked = queue.peek(1)
             if not peeked:
                 break
             entry = peeked[0]
+            if on_upload:
+                on_upload(entry, n + 1)
             published = target_client.create_entry(
                 BlogEntry(
                     entry_id="",

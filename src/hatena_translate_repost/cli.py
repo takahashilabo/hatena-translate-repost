@@ -108,8 +108,11 @@ def upload(
     """Upload queued translated entries to Hatena blog."""
     settings = _load_settings(env_file)
 
+    def on_upload(entry, n: int) -> None:
+        typer.echo(f"[{n}] Uploading: {entry.translated_title} ...")
+
     try:
-        results = upload_from_queue(settings, limit=limit)
+        results = upload_from_queue(settings, limit=limit, on_upload=on_upload)
     except (ValueError, RuntimeError, httpx.HTTPError) as exc:
         _handle_error(exc)
 
@@ -117,8 +120,9 @@ def upload(
         typer.secho("Queue is empty.", fg=typer.colors.YELLOW)
         return
 
+    typer.echo()
     for result in results:
-        typer.echo(f"Published: {result.queued_entry.translated_title}")
+        typer.secho(f"Published: {result.queued_entry.translated_title}", fg=typer.colors.GREEN)
         if result.published_entry.alternate_url:
             typer.echo(f"  {result.published_entry.alternate_url}")
 
